@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-tokio = { version = "1.45.1", features = ["rt", "rt-multi-thread", "macros"] }
+tokio = { version = "1.45.1", features = ["rt", "rt-multi-thread", "macros", "process", "time"] }
 dotenvy = "0.15.7"
 reqwest = { version = "0.12.20", features = ["json"] }
 serde = { version = "1.0.219", features = ["derive"] }
@@ -18,3 +18,5 @@ tokio-postgres = { version = "0.7.13", features = ["with-chrono-0_4", "with-uuid
 regex = "1.11.1"
 anyhow = "1.0.98"
 uuid = { version = "1", features = ["serde", "v4"] }
+time = "0.3.41"
+chrono = "0.4.41"

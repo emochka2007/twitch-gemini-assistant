@@ -1,6 +1,6 @@
 use crate::pg::pg::PgConnect;
-use crate::terminal::test_send_to_terminal;
 use crate::twitch::chat_message::{ChatMessage, MessageCommands, MessageStatus};
+use anyhow::anyhow;
 use std::str::FromStr;
 use tokio::time::{Duration, interval};
 use tracing::{error, info};
@@ -10,7 +10,7 @@ pub struct EventPoller {}
 
 impl EventPoller {
     pub async fn poll_message() -> anyhow::Result<ChatMessage> {
-        let pool = PgConnect::create_pool_from_env().unwrap();
+        let pool = PgConnect::create_pool_from_env()?;
         let client = pool.get().await?;
         let query =
             "SELECT * FROM chat_messages WHERE status='AWAITING' ORDER BY created_at LIMIT 1";
@@ -19,10 +19,16 @@ impl EventPoller {
         let command: String = message.try_get("command")?;
         let text: String = message.try_get("text")?;
         let concat_command = format!("{} {}", command, text);
-        Ok(ChatMessage::new_from_db(
-            id.to_string(),
-            MessageCommands::from_str(&concat_command).unwrap(),
-            message.try_get("user_id")?,
+        if let Ok(command) = MessageCommands::from_str(&concat_command) {
+            return Ok(ChatMessage::new_from_db(
+                id.to_string(),
+                command,
+                message.try_get("user_id")?,
+            ));
+        }
+        Err(anyhow!(
+            "MessageCommands::from_str error {}",
+            concat_command
         ))
     }
 
@@ -38,7 +44,7 @@ impl EventPoller {
                     info!("Got message: {:?}", msg);
                     match msg.command {
                         MessageCommands::Unknown(ref text) => {
-                            test_send_to_terminal(text)?;
+                            // test_send_to_terminal(text)?;
                             msg.update_status(MessageStatus::COMPLETED).await?;
                         }
                         _ => {

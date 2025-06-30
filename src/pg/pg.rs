@@ -87,7 +87,7 @@ impl PgConnect {
             .expect("Failed to create pool")
     }
 
-    pub fn from_env() -> Result<Self, Box<dyn StdError>> {
+    pub fn from_env() -> anyhow::Result<Self> {
         let mut pg = Self {
             dbname: env::var("PG_DB")?,
             password: env::var("PG_PASS")?,
@@ -100,7 +100,7 @@ impl PgConnect {
         Ok(pg)
     }
 
-    pub fn create_pool_from_env() -> Result<Pool, Box<dyn StdError>> {
+    pub fn create_pool_from_env() -> anyhow::Result<Pool> {
         let pool = Self::from_env()?;
         Ok(pool.create_pool())
     }

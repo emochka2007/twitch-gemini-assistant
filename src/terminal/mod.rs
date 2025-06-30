@@ -1,14 +1,17 @@
-#!/usr/bin/env rust-script
-use std::io::{self};
-use std::process::Command;
-use std::{thread, time::Duration};
+use regex::Regex;
+use std::io::{self, Write, stdin};
+use std::time::Duration;
+use tokio::process::Command;
+use tokio::task::JoinHandle;
 
 const TMUX_CMD: &str = "tmux";
+const SESSION_NAME: &str = "1";
 
-fn send_to_terminal(command: &str) -> io::Result<()> {
+async fn send_to_terminal(command: &str) -> io::Result<()> {
     let status = Command::new(TMUX_CMD)
         .args(&["send-keys", command, "Enter"])
-        .status()?;
+        .status()
+        .await?;
     if status.success() {
         println!("\x1b[94m[SENT TO TMUX]:\x1b[0m {}", command);
     } else {
@@ -17,8 +20,11 @@ fn send_to_terminal(command: &str) -> io::Result<()> {
     Ok(())
 }
 
-fn send_keystrokes_without_enter(text: &str) -> io::Result<()> {
-    let status = Command::new(TMUX_CMD).args(&["send-keys", text]).status()?;
+async fn send_keystrokes_without_enter(text: &str) -> io::Result<()> {
+    let status = Command::new(TMUX_CMD)
+        .args(&["send-keys", text])
+        .status()
+        .await?;
     if status.success() {
         println!("\x1b[94m[SENT TO TMUX]:\x1b[0m {} (no Enter)", text);
     } else {
@@ -27,10 +33,11 @@ fn send_keystrokes_without_enter(text: &str) -> io::Result<()> {
     Ok(())
 }
 
-fn send_enter() -> io::Result<()> {
+async fn send_enter() -> io::Result<()> {
     let status = Command::new(TMUX_CMD)
         .args(&["send-keys", "Enter"])
-        .status()?;
+        .status()
+        .await?;
     if status.success() {
         println!("\x1b[94m[SENT TO TMUX]:\x1b[0m [ENTER]");
     } else {
@@ -39,10 +46,11 @@ fn send_enter() -> io::Result<()> {
     Ok(())
 }
 
-fn send_esc() -> io::Result<()> {
+async fn send_esc() -> io::Result<()> {
     let status = Command::new(TMUX_CMD)
         .args(&["send-keys", "Escape"])
-        .status()?;
+        .status()
+        .await?;
     if status.success() {
         println!("\x1b[94m[SENT TO TMUX]:\x1b[0m [ESC]");
     } else {
@@ -51,29 +59,55 @@ fn send_esc() -> io::Result<()> {
     Ok(())
 }
 
-pub fn test_send_to_terminal(prompt: &str) -> io::Result<()> {
+pub async fn stream_by_polling(session: &str, window: usize, pane: usize) -> io::Result<()> {
+    let target = format!("{}:{}.{}", session, window, pane);
+    let mut last_output = String::new();
+
+    loop {
+        let mut out = Command::new("tmux")
+            .args(&["capture-pane", "-p", "-t", &target])
+            .output()
+            .await?;
+
+        let text = String::from_utf8_lossy(&out.stdout);
+        // Only print the *new* part:
+        print!("Text: {}", text);
+        if text.contains("Yes, allow once") {
+            send_enter().await?;
+        }
+        let re = Regex::new(r"\[FINISHED\]\s*\[RESPONSE\]").unwrap();
+        if re.is_match(&text) {
+            return Ok(());
+        }
+        io::stdout().flush()?;
+        last_output = text.into_owned();
+
+        tokio::time::sleep(Duration::from_millis(200)).await;
+    }
+}
+pub async fn test_send_to_terminal(prompt: &str) -> io::Result<()> {
+    println!("\nStep 1: Clearing and starting Gemini");
+    send_to_terminal("clear && gemini").await?;
+    tokio::time::sleep(Duration::from_secs(2)).await;
+
+    let logger: JoinHandle<io::Result<()>> = tokio::spawn(stream_by_polling(SESSION_NAME, 0, 0));
+
     println!("\nStep 2.5: Pressing ESC to clear any previous input");
-    send_esc()?;
-    thread::sleep(Duration::from_secs(1));
+    send_esc().await?;
+    tokio::time::sleep(Duration::from_secs(2)).await;
 
     println!("\nStep 3: Type prompt");
-    send_keystrokes_without_enter(prompt)?;
-    thread::sleep(Duration::from_secs(1));
-
-    println!("\nStep 4: Press Enter");
-    send_enter()?;
-
-    println!("\nStep 5: Waiting for Gemini response...");
-    thread::sleep(Duration::from_secs(60));
-
-    println!("\nStep 6: Auto-accepting file creation...");
-    send_enter()?;
+    send_keystrokes_without_enter(prompt).await?;
+    send_enter().await?;
+    logger.await.unwrap()?;
+    println!("\n Finished");
+    // send_enter().await?;
+    //
+    // println!("\nStep 5: Waiting for Gemini response...");
+    // tokio::time::sleep(Duration::from_secs(2)).await;
+    //
+    // println!("\nStep 6: Auto-accepting file creation...");
+    // send_enter().await?;
 
     Ok(())
 }
-
-// pub fn terminal_test() {
-//     if let Err(e) = test_send_to_terminal() {
-//         eprintln!("\x1b[91m[ERROR]: {}\x1b[0m", e);
-//     }
-// }

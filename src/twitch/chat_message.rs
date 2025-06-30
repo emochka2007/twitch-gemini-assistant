@@ -1,5 +1,4 @@
 use crate::pg::pg::PgConnect;
-use crate::sui;
 use anyhow::anyhow;
 use regex::Regex;
 use serde::__private::de::IdentifierDeserializer;
@@ -125,7 +124,7 @@ impl ChatMessage {
     }
 
     pub async fn update_status(&self, status: MessageStatus) -> anyhow::Result<()> {
-        let pool = PgConnect::create_pool_from_env().unwrap();
+        let pool = PgConnect::create_pool_from_env()?;
         let client = pool.get().await?;
         let query = "UPDATE chat_messages SET status = $1 WHERE id = $2";
         let id = Uuid::from_str(self.id.as_ref().unwrap())?;
