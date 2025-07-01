@@ -1,8 +1,1 @@
-- duplicates (hash text)
-- show username
-- queue inconsistent
 - donate api
-- make it sync response, understand when gemini responds
-- make a wrapper around user prompt and work in one file
-- sound the message
-- 

@@ -1,4 +1,6 @@
 use crate::pg::pg::PgConnect;
+use crate::prompt::get_formatted_prompt;
+use crate::terminal::test_send_to_terminal;
 use crate::twitch::chat_message::{ChatMessage, MessageCommands, MessageStatus};
 use anyhow::anyhow;
 use std::str::FromStr;
@@ -18,17 +20,13 @@ impl EventPoller {
         let id: Uuid = message.try_get("id")?;
         let command: String = message.try_get("command")?;
         let text: String = message.try_get("text")?;
-        let concat_command = format!("{} {}", command, text);
-        if let Ok(command) = MessageCommands::from_str(&concat_command) {
-            return Ok(ChatMessage::new_from_db(
-                id.to_string(),
-                command,
-                message.try_get("user_id")?,
-            ));
-        }
-        Err(anyhow!(
-            "MessageCommands::from_str error {}",
-            concat_command
+        let username: String = message.try_get("username")?;
+        Ok(ChatMessage::new(
+            Some(String::from(id)),
+            text,
+            MessageCommands::from_str(&command)?,
+            username,
+            MessageStatus::Awaiting,
         ))
     }
 
@@ -43,9 +41,17 @@ impl EventPoller {
                 Ok(msg) => {
                     info!("Got message: {:?}", msg);
                     match msg.command {
-                        MessageCommands::Unknown(ref text) => {
-                            // test_send_to_terminal(text)?;
-                            msg.update_status(MessageStatus::COMPLETED).await?;
+                        MessageCommands::StoreChatMessage => {
+                            let prompt = get_formatted_prompt(&msg.text);
+                            match test_send_to_terminal(&prompt).await {
+                                Ok(_) => {
+                                    info!("Completed");
+                                }
+                                Err(error) => {
+                                    error!("Gemini child error {:?}", error);
+                                }
+                            }
+                            msg.update_status(MessageStatus::Completed).await?;
                         }
                         _ => {
                             error!("Skipping message {:?}", msg);

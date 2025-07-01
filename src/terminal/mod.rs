@@ -1,5 +1,5 @@
 use regex::Regex;
-use std::io::{self, Write, stdin};
+use std::io::{self, Write};
 use std::time::Duration;
 use tokio::process::Command;
 use tokio::task::JoinHandle;
@@ -75,7 +75,7 @@ pub async fn stream_by_polling(session: &str, window: usize, pane: usize) -> io:
         if text.contains("Yes, allow once") {
             send_enter().await?;
         }
-        let re = Regex::new(r"\[FINISHED\]\s*\[RESPONSE\]").unwrap();
+        let re = Regex::new(r"\[FINISHED]\s*\[RESPONSE]").unwrap();
         if re.is_match(&text) {
             return Ok(());
         }
@@ -101,13 +101,6 @@ pub async fn test_send_to_terminal(prompt: &str) -> io::Result<()> {
     send_enter().await?;
     logger.await.unwrap()?;
     println!("\n Finished");
-    // send_enter().await?;
-    //
-    // println!("\nStep 5: Waiting for Gemini response...");
-    // tokio::time::sleep(Duration::from_secs(2)).await;
-    //
-    // println!("\nStep 6: Auto-accepting file creation...");
-    // send_enter().await?;
 
     Ok(())
 }

@@ -11,7 +11,7 @@ CREATE extension if not exists "uuid-ossp";
 CREATE table if not exists chat_messages
 (
     id         uuid primary key                     default uuid_generate_v4(),
-    user_id    bigint                      not null,
+    username   VARCHAR(256)                not null,
     text       text                        not null,
     command    VARCHAR(100)                not null,
     status     VARCHAR(100)                not null,

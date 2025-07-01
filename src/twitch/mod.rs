@@ -31,9 +31,9 @@ impl TwitchApi {
                         let msg_id_tag = priv_msg.source.tags.0.get("msg-id");
                         match msg_id_tag {
                             Some(_) => {
-                                if let Ok(chat_message) = ChatMessage::new_from_raw(
+                                if let Ok(chat_message) = ChatMessage::from_raw_message(
                                     priv_msg.message_text,
-                                    priv_msg.sender.id.parse()?,
+                                    priv_msg.sender.login,
                                 ) {
                                     chat_message.verify_and_send().await.unwrap();
                                 }
