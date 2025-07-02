@@ -5,7 +5,7 @@ use tokio::process::Command;
 use tokio::task::JoinHandle;
 
 const TMUX_CMD: &str = "tmux";
-const SESSION_NAME: &str = "1";
+const SESSION_NAME: &str = "2";
 
 async fn send_to_terminal(command: &str) -> io::Result<()> {
     let status = Command::new(TMUX_CMD)
@@ -75,7 +75,7 @@ pub async fn stream_by_polling(session: &str, window: usize, pane: usize) -> io:
         if text.contains("Yes, allow once") {
             send_enter().await?;
         }
-        let re = Regex::new(r"\[FINISHED]\s*\[RESPONSE]").unwrap();
+        let re = Regex::new(r"\[FINISHED]\[RESPONSE]").unwrap();
         if re.is_match(&text) {
             return Ok(());
         }
@@ -100,7 +100,6 @@ pub async fn test_send_to_terminal(prompt: &str) -> io::Result<()> {
     send_keystrokes_without_enter(prompt).await?;
     send_enter().await?;
     logger.await.unwrap()?;
-    println!("\n Finished");
 
     Ok(())
 }

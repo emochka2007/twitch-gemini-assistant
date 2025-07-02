@@ -56,7 +56,7 @@ impl Display for MessageStatus {
         let str = match self {
             MessageStatus::Awaiting => "AWAITING".to_string(),
             MessageStatus::Completed => "COMPLETED".to_string(),
-            MessageStatus::InProcess => "InProcess".to_string(),
+            MessageStatus::InProcess => "IN_PROCESS".to_string(),
         };
         write!(f, "{}", str)
     }
