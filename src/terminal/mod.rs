@@ -1,11 +1,11 @@
 use regex::Regex;
+use std::env;
 use std::io::{self, Write};
 use std::time::Duration;
 use tokio::process::Command;
 use tokio::task::JoinHandle;
 
 const TMUX_CMD: &str = "tmux";
-const SESSION_NAME: &str = "2";
 
 async fn send_to_terminal(command: &str) -> io::Result<()> {
     let status = Command::new(TMUX_CMD)
@@ -90,7 +90,8 @@ pub async fn test_send_to_terminal(prompt: &str) -> io::Result<()> {
     send_to_terminal("clear && gemini").await?;
     tokio::time::sleep(Duration::from_secs(2)).await;
 
-    let logger: JoinHandle<io::Result<()>> = tokio::spawn(stream_by_polling(SESSION_NAME, 0, 0));
+    let session_name = env::var("TMUX_SESSION").unwrap();
+    let logger: JoinHandle<io::Result<()>> = tokio::spawn(stream_by_polling(&session_name, 0, 0));
 
     println!("\nStep 2.5: Pressing ESC to clear any previous input");
     send_esc().await?;
