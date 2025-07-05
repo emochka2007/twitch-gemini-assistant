@@ -1,8 +1,10 @@
+use crate::api::run_server;
 use crate::twitch::TwitchApi;
 mod pg;
 use crate::event_poller::EventPoller;
 use crate::pg::pg::PgConnect;
 
+mod api;
 mod event_poller;
 mod prompt;
 mod terminal;
@@ -18,7 +20,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tokio::spawn(async {
         EventPoller::init().await.unwrap();
     });
-    TwitchApi::listen_to_chat().await?;
+    tokio::spawn(async {
+        TwitchApi::listen_to_chat().await.unwrap();
+    });
+    run_server().await.unwrap();
 
     Ok(())
 }

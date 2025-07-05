@@ -35,7 +35,7 @@ impl TwitchApi {
                                     priv_msg.message_text,
                                     priv_msg.sender.login,
                                 ) {
-                                    chat_message.verify_and_send().await.unwrap();
+                                    chat_message.insert().await.unwrap();
                                 }
                             }
                             None => (),

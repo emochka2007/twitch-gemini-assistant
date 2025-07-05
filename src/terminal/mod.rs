@@ -58,7 +58,29 @@ async fn send_esc() -> io::Result<()> {
     }
     Ok(())
 }
+async fn send_ctrl_c() -> io::Result<()> {
+    let status = Command::new(TMUX_CMD)
+        .args(&["send-keys", "C-c"])
+        .status()
+        .await?;
+    if status.success() {
+        println!("\x1b[94m[SENT TO TMUX]:\x1b[0m [CTRL-C]");
+    } else {
+        eprintln!("\x1b[91m[ERROR]: tmux exited with {}\x1b[0m", status);
+    }
+    Ok(())
+}
+async fn wait_for_exit_command() {
+    use tokio::io::{AsyncBufReadExt, BufReader};
+    let stdin = tokio::io::stdin();
+    let mut reader = BufReader::new(stdin).lines();
 
+    while let Ok(Some(line)) = reader.next_line().await {
+        if line.trim() == "/end" {
+            break;
+        }
+    }
+}
 pub async fn stream_by_polling(window: usize, pane: usize) -> io::Result<()> {
     let session_name = env::var("TMUX_SESSION").unwrap();
     let target = format!("{}:{}.{}", session_name, window, pane);
@@ -74,7 +96,7 @@ pub async fn stream_by_polling(window: usize, pane: usize) -> io::Result<()> {
         // Only print the *new* part:
         print!("Text: {}", text);
         if text.contains("Yes, allow once") {
-            send_enter().await?;
+            // send_enter().await?;
         }
         let re = Regex::new(r"\[FINISHED]\[RESPONSE]").unwrap();
         if re.is_match(&text) {
@@ -86,12 +108,13 @@ pub async fn stream_by_polling(window: usize, pane: usize) -> io::Result<()> {
         tokio::time::sleep(Duration::from_millis(200)).await;
     }
 }
+
 pub async fn test_send_to_terminal(prompt: &str) -> io::Result<()> {
     println!("\nStep 1: Clearing and starting Gemini");
-    send_to_terminal("clear && gemini").await?;
+    // send_to_terminal("clear && gemini").await?;
     tokio::time::sleep(Duration::from_secs(2)).await;
 
-    let logger: JoinHandle<io::Result<()>> = tokio::spawn(stream_by_polling(0, 0));
+    // let logger: JoinHandle<io::Result<()>> = tokio::spawn(stream_by_polling(0, 0));
 
     println!("\nStep 2.5: Pressing ESC to clear any previous input");
     send_esc().await?;
@@ -100,7 +123,18 @@ pub async fn test_send_to_terminal(prompt: &str) -> io::Result<()> {
     println!("\nStep 3: Type prompt");
     send_keystrokes_without_enter(prompt).await?;
     send_enter().await?;
-    logger.await.unwrap()?;
+    println!("\nStep 4: Type `/end` at any time to cancel...");
+
+    tokio::select! {
+        // _ = logger => {
+        //     println!("[logger task finished]");
+        // }
+        _ = wait_for_exit_command() => {
+            println!("[/end detected — stopping]");
+        }
+    }
+
+    // send_ctrl_c().await?;
 
     Ok(())
 }

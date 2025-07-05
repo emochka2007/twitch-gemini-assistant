@@ -25,6 +25,7 @@ impl EventPoller {
         let query =
             "SELECT * FROM chat_messages WHERE status='AWAITING' ORDER BY created_at LIMIT 1";
         let message = client.query_one(query, &[]).await?;
+        // todo move to impl
         let id: Uuid = message.try_get("id")?;
         let command: String = message.try_get("command")?;
         let text: String = message.try_get("text")?;
@@ -54,9 +55,9 @@ impl EventPoller {
                     info!("Got message: {:?}", msg);
                     match msg.command {
                         MessageCommands::StoreChatMessage => {
-                            let prompt = get_formatted_prompt(&msg.text);
+                            // let prompt = get_formatted_prompt(&msg.text);
                             msg.update_status(MessageStatus::InProcess).await?;
-                            match test_send_to_terminal(&prompt).await {
+                            match test_send_to_terminal(&msg.text).await {
                                 Ok(_) => {
                                     info!("Completed");
                                     msg.update_status(MessageStatus::Completed).await?;
