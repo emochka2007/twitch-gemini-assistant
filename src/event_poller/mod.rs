@@ -55,9 +55,9 @@ impl EventPoller {
                     info!("Got message: {:?}", msg);
                     match msg.command {
                         MessageCommands::StoreChatMessage => {
-                            // let prompt = get_formatted_prompt(&msg.text);
+                            let prompt = get_formatted_prompt(&msg.text);
                             msg.update_status(MessageStatus::InProcess).await?;
-                            match test_send_to_terminal(&msg.text).await {
+                            match test_send_to_terminal(&prompt).await {
                                 Ok(_) => {
                                     info!("Completed");
                                     msg.update_status(MessageStatus::Completed).await?;

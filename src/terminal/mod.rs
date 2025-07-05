@@ -2,8 +2,11 @@ use regex::Regex;
 use std::env;
 use std::io::{self, Write};
 use std::time::Duration;
+use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 use tokio::task::JoinHandle;
+use tokio::time::{interval, sleep};
+use tracing::info;
 
 const TMUX_CMD: &str = "tmux";
 
@@ -71,70 +74,53 @@ async fn send_ctrl_c() -> io::Result<()> {
     Ok(())
 }
 async fn wait_for_exit_command() {
-    use tokio::io::{AsyncBufReadExt, BufReader};
     let stdin = tokio::io::stdin();
     let mut reader = BufReader::new(stdin).lines();
-
-    while let Ok(Some(line)) = reader.next_line().await {
-        if line.trim() == "/end" {
-            break;
-        }
-    }
-}
-pub async fn stream_by_polling(window: usize, pane: usize) -> io::Result<()> {
-    let session_name = env::var("TMUX_SESSION").unwrap();
-    let target = format!("{}:{}.{}", session_name, window, pane);
-    let mut last_output = String::new();
+    let mut ticker = interval(Duration::from_secs(3));
 
     loop {
-        let mut out = Command::new("tmux")
-            .args(&["capture-pane", "-p", "-t", &target])
-            .output()
-            .await?;
+        tokio::select! {
+            _ = ticker.tick() => {
+                // ⏎ Always send enter every tick
+                if let Err(e) = send_enter().await {
+                    eprintln!("Error sending enter: {:?}", e);
+                } else {
+                    info!("Tick: sent enter");
+                }
+            }
 
-        let text = String::from_utf8_lossy(&out.stdout);
-        // Only print the *new* part:
-        print!("Text: {}", text);
-        if text.contains("Yes, allow once") {
-            // send_enter().await?;
+            line = reader.next_line() => {
+                match line {
+                    Ok(Some(input)) => {
+                        if input.trim() == "/" {
+                            info!("Received /, exiting...");
+                            break;
+                        }
+                    }
+                    Ok(None) => break, // EOF
+                    Err(e) => {
+                        eprintln!("Error reading line: {:?}", e);
+                        break;
+                    }
+                }
+            }
         }
-        let re = Regex::new(r"\[FINISHED]\[RESPONSE]").unwrap();
-        if re.is_match(&text) {
-            return Ok(());
-        }
-        io::stdout().flush()?;
-        last_output = text.into_owned();
-
-        tokio::time::sleep(Duration::from_millis(200)).await;
     }
 }
 
 pub async fn test_send_to_terminal(prompt: &str) -> io::Result<()> {
     println!("\nStep 1: Clearing and starting Gemini");
-    // send_to_terminal("clear && gemini").await?;
     tokio::time::sleep(Duration::from_secs(2)).await;
-
-    // let logger: JoinHandle<io::Result<()>> = tokio::spawn(stream_by_polling(0, 0));
 
     println!("\nStep 2.5: Pressing ESC to clear any previous input");
     send_esc().await?;
-    tokio::time::sleep(Duration::from_secs(2)).await;
 
     println!("\nStep 3: Type prompt");
     send_keystrokes_without_enter(prompt).await?;
+    tokio::time::sleep(Duration::from_secs(1)).await;
     send_enter().await?;
-    println!("\nStep 4: Type `/end` at any time to cancel...");
-
-    tokio::select! {
-        // _ = logger => {
-        //     println!("[logger task finished]");
-        // }
-        _ = wait_for_exit_command() => {
-            println!("[/end detected — stopping]");
-        }
-    }
-
-    // send_ctrl_c().await?;
-
+    println!("\nStep 4: Type `/` at any time to cancel...");
+    wait_for_exit_command().await;
+    info!("Exiting terminal task");
     Ok(())
 }
