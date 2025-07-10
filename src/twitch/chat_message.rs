@@ -17,7 +17,7 @@ pub struct ChatMessage {
     id: Option<String>,
     pub command: MessageCommands,
     pub(crate) text: String,
-    username: String,
+    pub(crate) username: String,
     status: MessageStatus,
 }
 
@@ -32,12 +32,16 @@ pub enum MessageStatus {
 #[derive(Debug, Deserialize, Serialize)]
 pub enum MessageCommands {
     StoreChatMessage,
+    SetTheme,
+    SetSong,
     Unknown,
 }
 impl Display for MessageCommands {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let str = match self {
             MessageCommands::StoreChatMessage => "!STORE".to_string(),
+            MessageCommands::SetTheme => "!SET".to_string(),
+            MessageCommands::SetSong => "!PLAY".to_string(),
             MessageCommands::Unknown => "UNKNOWN".to_string(),
         };
         write!(f, "{}", str)
@@ -49,6 +53,8 @@ impl FromStr for MessageCommands {
     fn from_str(s: &str) -> anyhow::Result<Self> {
         let command = match s {
             "!STORE" => MessageCommands::StoreChatMessage,
+            "!SET" => MessageCommands::SetTheme,
+            "!PLAY" => MessageCommands::SetSong,
             _ => MessageCommands::Unknown,
         };
         Ok(command)
@@ -122,6 +128,8 @@ impl ChatMessage {
         let text = captures.get(2).ok_or("Failed to capture text")?;
         match command.as_str().to_uppercase().as_str() {
             "!PROMPT" => Ok((MessageCommands::StoreChatMessage, text.as_str().to_string())),
+            "!SET" => Ok((MessageCommands::SetTheme, text.as_str().to_string())),
+            "!PLAY" => Ok((MessageCommands::SetSong, text.as_str().to_string())),
             _ => Err(anyhow!("Error parsing message {}", full_message).into()),
         }
     }
@@ -131,6 +139,16 @@ impl ChatMessage {
         let pool = PgConnect::create_pool_from_env()?;
         let client = pool.get().await?;
         let rows = client.query(query, &[&self.text]).await?;
+        Ok(rows.len() > 0)
+    }
+
+    async fn is_duplicate_theme(&self) -> anyhow::Result<bool> {
+        let query = "SELECT * FROM chat_messages WHERE username = $1 and status = $2";
+        let pool = PgConnect::create_pool_from_env()?;
+        let client = pool.get().await?;
+        let rows = client
+            .query(query, &[&self.username, &self.status.to_string()])
+            .await?;
         Ok(rows.len() > 0)
     }
 
@@ -147,19 +165,48 @@ impl ChatMessage {
                             query,
                             &[
                                 &self.username,
-                                &self.text,
-                                &self.command.to_string(),
+                                &self.text.trim(),
+                                &self.command.to_string().as_str().trim(),
                                 &MessageStatus::Unverified.to_string(),
                             ],
                         )
                         .await?;
                 }
             }
+            MessageCommands::SetTheme => {
+                if !self.is_duplicate_theme().await? {
+                    let query = "INSERT INTO chat_messages ( username, text, command, status ) VALUES ($1, $2, $3, $4)";
+                    client
+                        .query(
+                            query,
+                            &[
+                                &self.username,
+                                &self.text,
+                                &self.command.to_string(),
+                                &MessageStatus::Awaiting.to_string(),
+                            ],
+                        )
+                        .await?;
+                }
+            }
+            MessageCommands::SetSong => {
+                let query = "INSERT INTO chat_messages ( username, text, command, status ) VALUES ($1, $2, $3, $4)";
+                client
+                    .query(
+                        query,
+                        &[
+                            &self.username,
+                            &self.text,
+                            &self.command.to_string(),
+                            &MessageStatus::Awaiting.to_string(),
+                        ],
+                    )
+                    .await?;
+            }
             MessageCommands::Unknown => {
                 info!("Skipping message {:?}", self);
             }
         };
-
         Ok(())
     }
 

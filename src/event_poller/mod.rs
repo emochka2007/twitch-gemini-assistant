@@ -1,6 +1,10 @@
+use crate::chaos::overwrite_custom_css;
 use crate::pg::pg::PgConnect;
 use crate::prompt::get_formatted_prompt;
-use crate::terminal::test_send_to_terminal;
+use crate::spotify::get_spotify_auth_token;
+use crate::terminal::{
+    restart_vscode, send_shortcut_to_vscode, send_vscode_enable_custom_css, test_send_to_terminal,
+};
 use crate::twitch::chat_message::{ChatMessage, MessageCommands, MessageStatus};
 use anyhow::anyhow;
 use std::str::FromStr;
@@ -23,7 +27,7 @@ impl EventPoller {
         let pool = PgConnect::create_pool_from_env()?;
         let client = pool.get().await?;
         let query =
-            "SELECT * FROM chat_messages WHERE status='AWAITING' ORDER BY created_at LIMIT 1";
+            "SELECT * FROM chat_messages WHERE status='AWAITING' ORDER BY created_at asc LIMIT 1";
         let message = client.query_one(query, &[]).await?;
         // todo move to impl
         let id: Uuid = message.try_get("id")?;
@@ -40,7 +44,7 @@ impl EventPoller {
     }
 
     pub async fn init() -> anyhow::Result<()> {
-        let mut ticker = interval(Duration::from_secs(5));
+        let mut ticker = interval(Duration::from_secs(20));
 
         loop {
             // wait until the next tick
@@ -53,25 +57,34 @@ impl EventPoller {
             match EventPoller::poll_message().await {
                 Ok(msg) => {
                     info!("Got message: {:?}", msg);
+                    msg.update_status(MessageStatus::InProcess).await?;
                     match msg.command {
                         MessageCommands::StoreChatMessage => {
-                            let prompt = get_formatted_prompt(&msg.text);
-                            msg.update_status(MessageStatus::InProcess).await?;
-                            match test_send_to_terminal(&prompt).await {
+                            // let prompt = get_formatted_prompt(&msg.text);
+                            // todo config
+                            match test_send_to_terminal(&msg.username, &msg.text).await {
                                 Ok(_) => {
                                     info!("Completed");
-                                    msg.update_status(MessageStatus::Completed).await?;
                                 }
                                 Err(error) => {
                                     error!("Gemini child error {:?}", error);
                                 }
                             }
                         }
+                        MessageCommands::SetTheme => {
+                            overwrite_custom_css(&msg.text).unwrap();
+                            send_shortcut_to_vscode().await.unwrap();
+                        }
+                        MessageCommands::SetSong => {
+                            get_spotify_auth_token(&msg.text).await?;
+                        }
                         _ => {
                             error!("Skipping message {:?}", msg);
                         }
                     }
+                    msg.update_status(MessageStatus::Completed).await?;
                 }
+
                 Err(err) => {
                     error!("[ERROR polling message]: {:?}", err);
                 }

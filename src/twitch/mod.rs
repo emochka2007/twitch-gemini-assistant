@@ -5,6 +5,7 @@ use std::env;
 use std::error::Error;
 use std::fmt::Debug;
 use tokio::task::JoinHandle;
+use tracing::info;
 use twitch_irc::login::StaticLoginCredentials;
 use twitch_irc::message::ServerMessage::Privmsg;
 use twitch_irc::{ClientConfig, SecureTCPTransport, TwitchIRCClient};
@@ -28,17 +29,20 @@ impl TwitchApi {
             tokio::spawn(async move {
                 while let Some(message) = incoming_messages.recv().await {
                     if let Privmsg(priv_msg) = message {
-                        let msg_id_tag = priv_msg.source.tags.0.get("msg-id");
-                        match msg_id_tag {
-                            Some(_) => {
-                                if let Ok(chat_message) = ChatMessage::from_raw_message(
-                                    priv_msg.message_text,
-                                    priv_msg.sender.login,
-                                ) {
-                                    chat_message.insert().await.unwrap();
-                                }
-                            }
-                            None => (),
+                        // let msg_id_tag = priv_msg.source.tags.0.get("msg-id");
+                        // match msg_id_tag {
+                        //     Some(tag) => {
+                        //         let tag = tag.as_ref().unwrap();
+                        //         if tag == "highlighted-message" {}
+                        //     }
+                        //     //todo rework
+                        //     None => {}
+                        // }
+                        if let Ok(chat_message) = ChatMessage::from_raw_message(
+                            priv_msg.message_text,
+                            priv_msg.sender.login,
+                        ) {
+                            chat_message.insert().await.unwrap();
                         }
                     }
                 }
