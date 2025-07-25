@@ -1,7 +1,6 @@
 use crate::pg::pg::PgConnect;
 use anyhow::anyhow;
 use regex::Regex;
-use serde::__private::de::IdentifierDeserializer;
 use serde::{Deserialize, Serialize};
 use std::error::Error;
 use std::fmt::Display;
@@ -34,6 +33,7 @@ pub enum MessageCommands {
     StoreChatMessage,
     SetTheme,
     SetSong,
+    AIReply,
     Unknown,
 }
 impl Display for MessageCommands {
@@ -42,6 +42,7 @@ impl Display for MessageCommands {
             MessageCommands::StoreChatMessage => "!STORE".to_string(),
             MessageCommands::SetTheme => "!SET".to_string(),
             MessageCommands::SetSong => "!PLAY".to_string(),
+            MessageCommands::AIReply => "!REPLY".to_string(),
             MessageCommands::Unknown => "UNKNOWN".to_string(),
         };
         write!(f, "{}", str)
@@ -173,6 +174,20 @@ impl ChatMessage {
                         .await?;
                 }
             }
+            MessageCommands::AIReply => {
+                let query = "INSERT INTO chat_messages ( username, text, command, status ) VALUES ($1, $2, $3, $4)";
+                client
+                    .query(
+                        query,
+                        &[
+                            &self.username,
+                            &self.text.trim(),
+                            &self.command.to_string().as_str().trim(),
+                            &MessageStatus::Awaiting.to_string(),
+                        ],
+                    )
+                    .await?;
+            }
             MessageCommands::SetTheme => {
                 if !self.is_duplicate_theme().await? {
                     let query = "INSERT INTO chat_messages ( username, text, command, status ) VALUES ($1, $2, $3, $4)";
@@ -265,5 +280,24 @@ impl ChatMessage {
                 .await?;
         }
         Ok(())
+    }
+
+    pub async fn get_ai_chat_message() -> anyhow::Result<Self> {
+        let pool = PgConnect::create_pool_from_env()?;
+        let client = pool.get().await?;
+        let query = "SELECT * FROM chat_messages WHERE status='AWAITING' AND command = '!REPLY' ORDER BY created_at asc LIMIT 1";
+        let message = client.query_one(query, &[]).await?;
+        // todo move to impl
+        let id: Uuid = message.try_get("id")?;
+        let command: String = message.try_get("command")?;
+        let text: String = message.try_get("text")?;
+        let username: String = message.try_get("username")?;
+        Ok(ChatMessage::new(
+            Some(String::from(id)),
+            text,
+            MessageCommands::from_str(&command)?,
+            username,
+            MessageStatus::Awaiting,
+        ))
     }
 }
