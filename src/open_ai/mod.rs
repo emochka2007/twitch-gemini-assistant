@@ -1,6 +1,7 @@
 mod prompt;
 pub mod types;
 
+use crate::api::website_config::WebsiteConfig;
 use crate::open_ai::prompt::get_system_prompt;
 use crate::open_ai::types::{ApiMessage, ChatCompletionResponse};
 use anyhow::{Result, anyhow};
@@ -9,7 +10,7 @@ use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
 use std::io::ErrorKind;
 use std::{env, io};
-use tracing::error;
+use tracing::{error, info};
 
 pub struct OpenAI {
     key: String,
@@ -56,10 +57,16 @@ impl OpenAI {
     }
 
     pub async fn send_user_message(&self, messages: &mut Vec<ApiMessage>) -> Result<String> {
-        messages.push(ApiMessage {
-            role: "system".to_string(),
-            content: get_system_prompt(),
-        });
+        Self::keep_last_n(messages, 20);
+        let config = WebsiteConfig::get_config().await;
+        messages.insert(
+            0,
+            ApiMessage {
+                role: "system".to_string(),
+                content: config.prompt,
+            },
+        );
+        info!("{:#?}", messages);
         let body = json!({
         "model": "gpt-4o",
         "store": true,
@@ -67,5 +74,11 @@ impl OpenAI {
         });
         let response = self.post::<ChatCompletionResponse>(body).await?;
         Self::parse_choice(&response)
+    }
+
+    fn keep_last_n<T>(v: &mut Vec<T>, n: usize) {
+        if v.len() > n {
+            v.drain(0..v.len() - n);
+        }
     }
 }

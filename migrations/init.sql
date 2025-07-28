@@ -29,6 +29,7 @@ CREATE TABLE if not exists website_config
 (
     sound_name TEXT        NOT NULL,
     theme      TEXT        NOT NULL,
+    prompt     TEXT        NOT NULL,
     alert      TEXT        NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
