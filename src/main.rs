@@ -1,11 +1,8 @@
-use crate::api::run_server;
-use crate::api::website_config::WebsiteConfig;
-use crate::twitch::TwitchApi;
-use tracing::info;
+use crate::api::{chat, get_config, update_config};
+use actix_web::web::ServiceConfig;
+use shuttle_actix_web::ShuttleActixWeb;
 
 mod pg;
-use crate::event_poller::EventPoller;
-use crate::open_ai::OpenAI;
 use crate::pg::pg::PgConnect;
 
 mod api;
@@ -17,17 +14,20 @@ mod spotify;
 mod terminal;
 mod twitch;
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    tracing_subscriber::fmt::init();
+#[shuttle_runtime::main]
+async fn main() -> ShuttleActixWeb<impl FnOnce(&mut ServiceConfig) + Send + Clone + 'static> {
+    // tracing_subscriber::fmt::init();
     dotenvy::dotenv().expect("Env file is not loaded into the project");
-    let pool = PgConnect::create_pool_from_env()?;
-    let client = pool.get().await?;
-    PgConnect::run_migrations(&client).await?;
+    let pool = PgConnect::create_pool_from_env().unwrap();
+    let client = pool.get().await.unwrap();
+    PgConnect::run_migrations(&client).await.unwrap();
     // tokio::spawn(async {
     //     EventPoller::init().await.unwrap();
     // });
     // TwitchApi::listen_to_chat().await.unwrap();
-    run_server().await.unwrap();
-    Ok(())
+    let config = move |cfg: &mut ServiceConfig| {
+        cfg.service(chat).service(get_config).service(update_config);
+    };
+
+    Ok(config.into())
 }

@@ -4,8 +4,10 @@ use crate::api::website_config::WebsiteConfig;
 use crate::open_ai::OpenAI;
 use crate::open_ai::types::ApiMessage;
 use crate::twitch::chat_message::{ChatMessage, MessageStatus};
+use actix_web::web::{ServiceConfig, get};
 use actix_web::{App, HttpServer, Responder, get, post, web};
 use serde::{Deserialize, Serialize};
+use shuttle_actix_web::ShuttleActixWeb;
 use std::time::Duration;
 use tracing::error;
 
@@ -84,7 +86,7 @@ async fn update_config(req: web::Json<UpdateConfig>) -> impl Responder {
 }
 
 #[post("/chat")]
-async fn get_message(mut req: web::Json<GetMessage>) -> impl Responder {
+pub async fn chat(mut req: web::Json<GetMessage>) -> impl Responder {
     loop {
         let rand = rand::random_range(0..100);
         if rand >= 31 {
@@ -119,18 +121,4 @@ async fn get_config() -> impl Responder {
         theme: config.theme,
         alert: config.alert,
     })
-}
-
-pub async fn run_server() -> std::io::Result<()> {
-    println!("Starting server at http://localhost:8080");
-
-    HttpServer::new(|| {
-        App::new()
-            .service(get_message)
-            .service(get_config)
-            .service(update_config)
-    })
-    .bind(("127.0.0.1", 8080))?
-    .run()
-    .await
 }
