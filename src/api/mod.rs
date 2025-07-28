@@ -1,13 +1,13 @@
-pub mod website_config;
-
 use crate::api::website_config::WebsiteConfig;
 use crate::open_ai::OpenAI;
 use crate::open_ai::types::ApiMessage;
 use crate::twitch::chat_message::{ChatMessage, MessageStatus};
 use actix_web::{App, HttpServer, Responder, get, post, web};
+use serde::de::Unexpected::Str;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use tracing::error;
+pub mod website_config;
 
 #[derive(Serialize)]
 struct ChatMessagesResponse {
@@ -31,6 +31,11 @@ struct UpdateConfig {
     alert: Option<String>,
 }
 
+#[derive(Deserialize)]
+struct UpdatePrompt {
+    prompt: String,
+}
+
 #[derive(Serialize)]
 struct SuccessResponse {
     success: bool,
@@ -46,6 +51,7 @@ struct ConfigResponse {
     sound: String,
     theme: String,
     alert: String,
+    prompt: String,
 }
 
 #[get("/all")]
@@ -77,22 +83,22 @@ async fn update_config(req: web::Json<UpdateConfig>) -> impl Responder {
         sound_name: req.sound_name.clone().unwrap_or(default.clone()),
         theme: req.theme.clone().unwrap_or(default.clone()),
         alert: req.alert.clone().unwrap_or(default),
+        prompt: String::new(),
     })
     .await
     .unwrap();
     web::Json(SuccessResponse { success: true })
 }
 
+#[post("/update-prompt")]
+async fn update_prompt(req: web::Json<UpdatePrompt>) -> impl Responder {
+    WebsiteConfig::update_prompt(&req.prompt).await.unwrap();
+    web::Json(SuccessResponse { success: true })
+}
+
 #[post("/chat")]
 async fn get_message(mut req: web::Json<GetMessage>) -> impl Responder {
     loop {
-        let rand = rand::random_range(0..100);
-        if rand >= 31 {
-            let open_ai = OpenAI::new().unwrap();
-            let response = open_ai.send_user_message(&mut req.messages).await.unwrap();
-            return web::Json(ChatResponse { response });
-        }
-
         match ChatMessage::get_ai_chat_message().await {
             Ok(message) => {
                 message
@@ -107,6 +113,28 @@ async fn get_message(mut req: web::Json<GetMessage>) -> impl Responder {
                 error!("Error getting chat message {e:?}");
             }
         }
+
+        let rand = rand::random_range(0..100);
+        if rand >= 31 {
+            let open_ai = OpenAI::new().unwrap();
+            let response = open_ai.send_user_message(&mut req.messages).await.unwrap();
+            return web::Json(ChatResponse { response });
+        }
+        match ChatMessage::get_admin_message().await {
+            Ok(message) => {
+                message
+                    .update_status(MessageStatus::Completed)
+                    .await
+                    .unwrap();
+                return web::Json(ChatResponse {
+                    response: message.text,
+                });
+            }
+            Err(e) => {
+                error!("Error getting chat message {e:?}");
+            }
+        }
+
         tokio::time::sleep(Duration::from_secs(1)).await;
     }
 }
@@ -118,6 +146,7 @@ async fn get_config() -> impl Responder {
         sound: config.sound_name,
         theme: config.theme,
         alert: config.alert,
+        prompt: config.prompt,
     })
 }
 
@@ -128,6 +157,7 @@ pub async fn run_server() -> std::io::Result<()> {
         App::new()
             .service(get_message)
             .service(get_config)
+            .service(update_prompt)
             .service(update_config)
     })
     .bind(("127.0.0.1", 8080))?

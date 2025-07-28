@@ -88,7 +88,7 @@ pub struct OutputTokensDetails {
     pub reasoning_tokens: u32,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct ApiMessage {
     // system, user
     pub(crate) role: String,
