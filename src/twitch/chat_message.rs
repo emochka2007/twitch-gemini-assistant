@@ -36,6 +36,7 @@ pub enum MessageCommands {
     AIReply,
     Unknown,
 }
+
 impl Display for MessageCommands {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let str = match self {
@@ -285,9 +286,10 @@ impl ChatMessage {
     pub async fn get_admin_message() -> anyhow::Result<Self> {
         let pool = PgConnect::create_pool_from_env()?;
         let client = pool.get().await?;
-        let white_list = ["daggerkisses"];
-        let query = "SELECT * FROM chat_messages WHERE status='AWAITING' AND command = '!REPLY' AND username IN ($1) ORDER BY created_at asc LIMIT 1";
-        let message = client.query_one(query, &[&white_list]).await?;
+        let query = "SELECT * FROM chat_messages WHERE username=$1 and status = $2 ORDER BY created_at asc LIMIT 1";
+        let message = client
+            .query_one(query, &[&"admin", &MessageStatus::Awaiting.to_string()])
+            .await?;
         let id: Uuid = message.try_get("id")?;
         let command: String = message.try_get("command")?;
         let text: String = message.try_get("text")?;
@@ -301,7 +303,7 @@ impl ChatMessage {
         ))
     }
 
-    pub async fn get_ai_chat_message() -> anyhow::Result<Self> {
+    pub async fn get_user_chat_message() -> anyhow::Result<Self> {
         let pool = PgConnect::create_pool_from_env()?;
         let client = pool.get().await?;
         let query = "SELECT * FROM chat_messages WHERE status='AWAITING' AND command = '!REPLY' ORDER BY created_at asc LIMIT 1";

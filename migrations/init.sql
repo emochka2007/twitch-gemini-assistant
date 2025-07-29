@@ -27,10 +27,11 @@ EXECUTE FUNCTION update_timestamp();
 
 CREATE TABLE if not exists website_config
 (
-    sound_name TEXT        NOT NULL,
-    theme      TEXT        NOT NULL,
-    prompt     TEXT        NOT NULL,
-    alert      TEXT        NOT NULL,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    sound_name    TEXT        NOT NULL,
+    theme         TEXT        NOT NULL,
+    prompt        TEXT        NOT NULL,
+    alert         TEXT        NOT NULL,
+    erase_message bool                 default false,
+    updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );

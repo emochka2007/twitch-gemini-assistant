@@ -6,6 +6,7 @@ pub struct WebsiteConfig {
     pub(crate) theme: String,
     pub(crate) alert: String,
     pub(crate) prompt: String,
+    pub(crate) erase_message: bool,
 }
 
 impl WebsiteConfig {
@@ -19,13 +20,19 @@ impl WebsiteConfig {
             .await?;
         Ok(())
     }
-    pub async fn update_config(config: WebsiteConfig) -> anyhow::Result<()> {
+    pub async fn update_config(sound_name: &str, theme: &str, alert: &str) -> anyhow::Result<()> {
         let pool = PgConnect::create_pool_from_env()?;
         let client = pool.get().await?;
         let query = "UPDATE website_config SET sound_name = $1, theme = $2, alert = $3";
-        let rows = client
-            .query(query, &[&config.sound_name, &config.theme, &config.alert])
-            .await?;
+        let rows = client.query(query, &[&sound_name, &theme, &alert]).await?;
+        Ok(())
+    }
+
+    pub async fn update_erase_message(status: &bool) -> anyhow::Result<()> {
+        let pool = PgConnect::create_pool_from_env()?;
+        let client = pool.get().await?;
+        let query = "UPDATE website_config SET erase_message = $1";
+        let rows = client.query(query, &[status]).await?;
         Ok(())
     }
 
@@ -47,6 +54,7 @@ impl WebsiteConfig {
                 theme: row.try_get("theme").unwrap(),
                 alert: row.try_get("alert").unwrap(),
                 prompt: row.try_get("prompt").unwrap(),
+                erase_message: row.try_get("erase_message").unwrap(),
             },
             Err(e) => {
                 Self::init_config().await.unwrap();
