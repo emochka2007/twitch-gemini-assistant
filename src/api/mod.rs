@@ -7,7 +7,7 @@ use actix_web::{App, HttpServer, Responder, get, post, web};
 use serde::de::Unexpected::Str;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
-use tracing::error;
+use tracing::{error, info};
 
 pub mod website_config;
 
@@ -21,7 +21,7 @@ struct BulkUpdateRequest {
     ids: Vec<String>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 struct GetMessage {
     messages: Vec<ApiMessage>,
 }
@@ -134,27 +134,28 @@ async fn add_admin_message(req: web::Json<AddAdminMessage>) -> impl Responder {
 
 #[post("/chat")]
 async fn get_message(mut req: web::Json<GetMessage>) -> impl Responder {
+    info!("{:?}", req);
     loop {
-        match ChatMessage::get_user_chat_message().await {
-            Ok(message) => {
-                message
-                    .update_status(MessageStatus::Completed)
-                    .await
-                    .unwrap();
-                return web::Json(ChatResponse {
-                    response: message.text,
-                });
-            }
-            Err(e) => {
-                error!("Error getting chat message {e:?}");
-            }
-        }
-
         let rand = rand::random_range(0..100);
         if rand >= 31 {
             let open_ai = OpenAI::new().unwrap();
             let response = open_ai.send_user_message(&mut req.messages).await.unwrap();
             return web::Json(ChatResponse { response });
+        } else {
+            match ChatMessage::get_user_chat_message().await {
+                Ok(message) => {
+                    message
+                        .update_status(MessageStatus::Completed)
+                        .await
+                        .unwrap();
+                    return web::Json(ChatResponse {
+                        response: message.text,
+                    });
+                }
+                Err(e) => {
+                    error!("Error getting chat message {e:?}");
+                }
+            }
         }
 
         tokio::time::sleep(Duration::from_secs(1)).await;
@@ -189,7 +190,7 @@ async fn get_config() -> impl Responder {
 }
 
 pub async fn run_server() -> std::io::Result<()> {
-    println!("Starting server at http://localhost:8080");
+    info!("Starting server at http://localhost:8080");
 
     HttpServer::new(|| {
         App::new()

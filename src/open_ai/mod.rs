@@ -66,7 +66,7 @@ impl OpenAI {
                 content: config.prompt,
             },
         );
-        info!("{:#?}", messages);
+        info!("{:?}", messages);
         let body = json!({
         "model": "gpt-4o",
         "store": true,
