@@ -304,6 +304,26 @@ impl ChatMessage {
         ))
     }
 
+    pub async fn get_companion_message() -> anyhow::Result<Self> {
+        let pool = PgConnect::create_pool_from_env()?;
+        let client = pool.get().await?;
+        let query = "SELECT * FROM chat_messages WHERE username = $1 and status = $2 ORDER BY created_at asc LIMIT 1";
+        let message = client
+            .query_one(query, &[&"companion", &MessageStatus::Awaiting.to_string()])
+            .await?;
+        let id: Uuid = message.try_get("id")?;
+        let command: String = message.try_get("command")?;
+        let text: String = message.try_get("text")?;
+        let username: String = message.try_get("username")?;
+        Ok(ChatMessage::new(
+            Some(String::from(id)),
+            text,
+            MessageCommands::from_str(&command)?,
+            username,
+            MessageStatus::Awaiting,
+        ))
+    }
+
     pub async fn get_user_chat_message() -> anyhow::Result<Self> {
         let pool = PgConnect::create_pool_from_env()?;
         let client = pool.get().await?;

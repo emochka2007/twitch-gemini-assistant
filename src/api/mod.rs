@@ -43,7 +43,7 @@ struct UpdateEraseMessages {
     status: bool,
 }
 #[derive(Deserialize)]
-struct AddAdminMessage {
+struct AddNonUserMessage {
     text: String,
 }
 
@@ -65,6 +65,7 @@ struct ConfigResponse {
     prompt: String,
     erase_message: bool,
     admin_message: Option<String>,
+    companion_message: Option<String>,
 }
 
 #[get("/all")]
@@ -112,7 +113,7 @@ async fn update_erase_messages(req: web::Json<UpdateEraseMessages>) -> impl Resp
 }
 
 #[post("/add-admin-message")]
-async fn add_admin_message(req: web::Json<AddAdminMessage>) -> impl Responder {
+async fn add_admin_message(req: web::Json<AddNonUserMessage>) -> impl Responder {
     let pool = PgConnect::create_pool_from_env().unwrap();
     let client = pool.get().await.unwrap();
     let query =
@@ -132,12 +133,33 @@ async fn add_admin_message(req: web::Json<AddAdminMessage>) -> impl Responder {
     web::Json(SuccessResponse { success: true })
 }
 
+#[post("/add-companion-message")]
+async fn add_companion_message(req: web::Json<AddNonUserMessage>) -> impl Responder {
+    let pool = PgConnect::create_pool_from_env().unwrap();
+    let client = pool.get().await.unwrap();
+    let query =
+        "INSERT INTO chat_messages ( username, text, command, status ) VALUES ($1, $2, $3, $4)";
+    client
+        .query(
+            query,
+            &[
+                &"companion",
+                &req.text.trim(),
+                &"COMPANION",
+                &MessageStatus::Awaiting.to_string(),
+            ],
+        )
+        .await
+        .unwrap();
+    web::Json(SuccessResponse { success: true })
+}
+
 #[post("/chat")]
 async fn get_message(mut req: web::Json<GetMessage>) -> impl Responder {
     info!("{:?}", req);
     loop {
         let rand = rand::random_range(0..100);
-        if rand >= 71 {
+        if rand >= 50 {
             let open_ai = OpenAI::new().unwrap();
             let response = open_ai.send_user_message(&mut req.messages).await.unwrap();
             return web::Json(ChatResponse { response });
@@ -165,27 +187,33 @@ async fn get_message(mut req: web::Json<GetMessage>) -> impl Responder {
 #[get("/config")]
 async fn get_config() -> impl Responder {
     let config = WebsiteConfig::get_config().await;
-    if let Ok(admin_message) = ChatMessage::get_admin_message().await {
-        admin_message
+    let mut admin_message: Option<String> = None;
+    let mut companion_message: Option<String> = None;
+
+    if let Ok(found_admin_msg) = ChatMessage::get_admin_message().await {
+        found_admin_msg
             .update_status(MessageStatus::Completed)
             .await
             .unwrap();
-        return web::Json(ConfigResponse {
-            sound: config.sound_name,
-            theme: config.theme,
-            alert: config.alert,
-            prompt: config.prompt,
-            erase_message: config.erase_message,
-            admin_message: Some(admin_message.text),
-        });
+        admin_message = Some(found_admin_msg.text);
     };
+
+    if let Ok(found_companion_msg) = ChatMessage::get_companion_message().await {
+        found_companion_msg
+            .update_status(MessageStatus::Completed)
+            .await
+            .unwrap();
+        companion_message = Some(found_companion_msg.text);
+    };
+
     web::Json(ConfigResponse {
         sound: config.sound_name,
         theme: config.theme,
         alert: config.alert,
         prompt: config.prompt,
         erase_message: config.erase_message,
-        admin_message: None,
+        admin_message,
+        companion_message,
     })
 }
 
@@ -200,6 +228,7 @@ pub async fn run_server() -> std::io::Result<()> {
             .service(update_config)
             .service(update_erase_messages)
             .service(add_admin_message)
+            .service(add_companion_message)
     })
     .bind(("127.0.0.1", 8080))?
     .run()
