@@ -132,6 +132,7 @@ impl ChatMessage {
             "!PROMPT" => Ok((MessageCommands::StoreChatMessage, text.as_str().to_string())),
             "!SET" => Ok((MessageCommands::SetTheme, text.as_str().to_string())),
             "!PLAY" => Ok((MessageCommands::SetSong, text.as_str().to_string())),
+            "!REPLY" => Ok((MessageCommands::AIReply, text.as_str().to_string())),
             _ => Err(anyhow!("Error parsing message {}", full_message).into()),
         }
     }

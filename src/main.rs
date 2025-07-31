@@ -1,6 +1,7 @@
 use crate::api::run_server;
 mod pg;
 use crate::pg::pg::PgConnect;
+use crate::twitch::TwitchApi;
 
 mod api;
 mod chaos;
@@ -21,7 +22,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // tokio::spawn(async {
     //     EventPoller::init().await.unwrap();
     // });
-    // TwitchApi::listen_to_chat().await.unwrap();
+    tokio::spawn(async {
+        TwitchApi::listen_to_chat().await.unwrap();
+    });
     run_server().await.unwrap();
     Ok(())
 }

@@ -137,7 +137,7 @@ async fn get_message(mut req: web::Json<GetMessage>) -> impl Responder {
     info!("{:?}", req);
     loop {
         let rand = rand::random_range(0..100);
-        if rand >= 31 {
+        if rand >= 71 {
             let open_ai = OpenAI::new().unwrap();
             let response = open_ai.send_user_message(&mut req.messages).await.unwrap();
             return web::Json(ChatResponse { response });
