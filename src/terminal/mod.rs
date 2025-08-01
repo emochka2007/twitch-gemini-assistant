@@ -90,7 +90,7 @@ pub async fn send_vscode_enable_custom_css() -> io::Result<()> {
     // Wait a moment to ensure the palette opens
     sleep(Duration::from_millis(300)).await;
 
-    // Step 2: Type the command
+    // Step 2: Type the commands
     let command = "Enable Custom CSS and JS";
 
     let type_command = Command::new(TMUX_CMD)
@@ -99,7 +99,7 @@ pub async fn send_vscode_enable_custom_css() -> io::Result<()> {
         .await?;
 
     if !type_command.success() {
-        eprintln!("[ERROR] Failed to type VSCode command");
+        eprintln!("[ERROR] Failed to type VSCode commands");
         return Ok(());
     }
 
@@ -126,10 +126,10 @@ pub async fn send_shortcut_to_vscode() -> std::io::Result<()> {
         delay 0.3
         tell application "System Events"
             -- Send Cmd+Option+U
-            keystroke "u" using {command down, option down}
+            keystroke "u" using {commands down, option down}
             delay 0.2
             -- Send Cmd+Option+R
-            keystroke "r" using {command down, option down}
+            keystroke "r" using {commands down, option down}
         end tell
     "#;
 

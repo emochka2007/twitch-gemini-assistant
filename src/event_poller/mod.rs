@@ -1,12 +1,8 @@
 use crate::chaos::overwrite_custom_css;
 use crate::pg::pg::PgConnect;
-use crate::prompt::get_formatted_prompt;
 use crate::spotify::get_spotify_auth_token;
-use crate::terminal::{
-    restart_vscode, send_shortcut_to_vscode, send_vscode_enable_custom_css, test_send_to_terminal,
-};
+use crate::terminal::{send_shortcut_to_vscode, test_send_to_terminal};
 use crate::twitch::chat_message::{ChatMessage, MessageCommands, MessageStatus};
-use anyhow::anyhow;
 use std::str::FromStr;
 use tokio::time::{Duration, interval};
 use tracing::{error, info};
@@ -31,7 +27,7 @@ impl EventPoller {
         let message = client.query_one(query, &[]).await?;
         // todo move to impl
         let id: Uuid = message.try_get("id")?;
-        let command: String = message.try_get("command")?;
+        let command: String = message.try_get("commands")?;
         let text: String = message.try_get("text")?;
         let username: String = message.try_get("username")?;
         Ok(ChatMessage::new(
